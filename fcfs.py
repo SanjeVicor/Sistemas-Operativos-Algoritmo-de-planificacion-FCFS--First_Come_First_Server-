@@ -6,22 +6,44 @@ import subprocess as sp
 from datetime import datetime
 from datetime import timedelta
 import time
+from calculator import makeOperation
+import re
 
 globalClock = datetime.strptime("00:00", "%M:%S")
 endedList = list()
 lockedList = list()
 queueReady = list()
 
+
 def getReady(memorySpace): 
     tableData = [['ID', 'Tiempo Maximo Esperado', 'Tiempo Restante']]
     for pendingTask in memorySpace:
-        tableData.append([pendingTask.getID(),str(pendingTask.getTME().second) + "'s", str(pendingTask.getTR().second) + "'s"])
+        tableData.append([pendingTask.getID(),
+                          str(pendingTask.getTME().second) + "'s", 
+                          str(pendingTask.getTR().second) + "'s"])
     table = AsciiTable(tableData)
     print (table.table)
 
 def getExcecutable(process):
-    tableData = [['ID', 'Operación', 'Tiempo de llegada', 'Tiempo de Respuesta', 'Tiempo de espera', 'Tiempo de Servicio']]
-    tableData.append([process.getID(),str(process.getTME().second) + "'s", str(process.getTR().second) + "'s"])
+    tableData = [['ID', 
+                  'Operación', 
+                  'Tiempo de llegada', 
+                  'Tiempo Max. Esperado', 
+                  'Tiempo Restante' , 
+                  'Tiempo de Respuesta',
+                  'Tiempo de Espera',
+                  'Tiempo de Servicio']]
+    
+    tableData.append([process.getID(), 
+                      process.getOperation(), 
+                      str(process.getAT().second) + "'s" ,
+                      str(process.getTME().second) + "'s", 
+                      str(process.getTR().second) + "'s", 
+                      str(process.getTFS()) + "'s", 
+                      str(process.getWaitingTime().second) + "'s",
+                      str(process.getServiceTime().second) + "'s"
+                      ])
+    
     table = AsciiTable(tableData)
     print (table.table)
 
@@ -31,16 +53,23 @@ def getLocked(queueLocked):
     for task in queueLocked:
         tableData.append([task.getID(),str(task.getTLock().second) + "'s"])
         task.setTLock(task.getTLock() + incrementTime)
+        task.setWaitingTime(task.getTFS() + task.getTLock())
     table = AsciiTable(tableData)
     print (table.table)
 
 def getEnded(queueEnded):
-    tableData = [['ID', 'Operación', 'Resultado']]
+    tableData = [['ID', 'Operación', 'Resultado', 'Tiempo de Finalización']]
     for task in queueEnded:
         if not task.getError():
-            tableData.append([task.getID(),task.getOperation(), task.getResult()])
+            tableData.append([task.getID(),
+                              task.getOperation(), 
+                              task.getResult(), 
+                              str(task.getTF().second) + "'s"])
         else:
-            tableData.append([task.getID(),task.getOperation(), task.getErrorMessages()])
+            tableData.append([task.getID(),
+                              task.getOperation(), 
+                              task.getErrorMessages(), 
+                              str(task.getTF().second) + "'s"])
     table = AsciiTable(tableData)
     print (table.table)
 
@@ -53,15 +82,20 @@ def somethingOnQueueReady():
     incrementTime = timedelta(seconds=1)
     executableProcess = queueReady.pop(0)
     executableProcess.setResult(0)
+    
+    if not executableProcess.getFirstServe():
+        executableProcess.setFirstServe(True)
+        executableProcess.setTFS(globalClock - executableProcess.getAT())
+        
     while executableProcess.getTR().second > 0:
+        executableProcess.setServiceTime(executableProcess.getServiceTime()+incrementTime)
+        
         proc = checkLockedQueue()
         if proc : 
             queueReady.append(proc)
         key=''
+        
         executableProcess.setTR(executableProcess.getTR() - incrementTime)
-            
-        printTables()
-        getExcecutable(executableProcess)
             
         if msvcrt.kbhit():
             key = msvcrt.getch().decode('utf-8')
@@ -81,9 +115,30 @@ def somethingOnQueueReady():
                         key = key.lower() 
                         if key == 'c':
                             break
+                        
+        tmp = sp.call('cls',shell=True)  
+        
+        printTables()
+        
+        getExcecutable(executableProcess)
+        
         time.sleep(1)
-        tmp = sp.call('cls',shell=True)
-    if key != 'i':    
+    
+    if key != 'i':   
+        if not executableProcess.getError():
+            operationList = []
+            operationList = re.split(r"(\x2a|\x2b|\x2d|\x2f|\x5e|\x25)",executableProcess.getOperation())
+            
+            for word in operationList:
+                    if word == "":
+                        operationList.remove(word)
+            
+            result = makeOperation(operationList)
+            executableProcess.setResult(result)
+        
+        executableProcess.setTF(globalClock)
+        executableProcess.setReturnTime(globalClock - executableProcess.getAT())
+        executableProcess.setWaitingTime(executableProcess.getTFS() + executableProcess.getTLock())
         endedList.append(executableProcess)
 
 def printTables():
@@ -91,19 +146,34 @@ def printTables():
     global endedList
     global lockedList
     global queueReady
-    getLocked(lockedList)
-    getEnded(endedList)  
-    getReady(queueReady)
-
+    incrementTime = timedelta(seconds=1)
+    globalClock += incrementTime
+    print(f"[*] Temporizador Global --->  {globalClock.second}'s")
+    if len(lockedList) > 0:
+        getLocked(lockedList)
+    else:
+        print("[-] No hay procesos bloqueados")
+    if len(endedList) > 0:
+        getEnded(endedList)  
+    else:
+        print("[-] No hay procesos terminados")
+    if len(queueReady) > 0:
+        getReady(queueReady)
+    else:
+        print("[-] No hay procesos en memoria")
+        
 def checkLockedQueue():
     global lockedList
-    for process in lockedList:
-        if process.getTLock().second == 10:
-            proc = process
-            lockedList.remove(process)
-            return proc
-    return None
-            
+    incrementTime = timedelta(seconds=1) 
+    if len(lockedList) > 0:
+        for process in lockedList:
+            if process.getTLock().second > 0:
+                if (process.getTLock().second  % 10) == 0:
+                    process.setTLock(process.getTLock() + incrementTime)
+                    proc = process
+                    lockedList.remove(process) 
+                    return proc
+                
 def motor():
     global queueReady
     while len(queueReady) > 0 or len(lockedList) > 0:
@@ -113,14 +183,18 @@ def motor():
             if proc : 
                 queueReady.append(proc)
         else:
+            tmp = sp.call('cls',shell=True)  
+            printTables()
             proc = checkLockedQueue()
             if proc : 
                 queueReady.append(proc)
+            time.sleep(1)
         
     tmp = sp.call('cls',shell=True)
     getEnded(endedList)
 
 def main(n):
+    global globalClock
     global queueReady
     RAM = list()
     completeOperationMatch = r"(\x2d)?\d(\x2a|\x2b|\x2d|\x5e|\x2f|\x25)\d"
@@ -141,6 +215,8 @@ def main(n):
     #print(RAM)
     while len(RAM) > 0:
         queueReady = RAM.pop(0)
+        for process in queueReady:
+            process.setArriveTime(globalClock)
         motor()
         #print(RAM)   
         

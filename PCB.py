@@ -7,8 +7,20 @@ class PCB:
         self.TME            = datetime.strptime(TME, "%M:%S")    
         self.TR             = datetime.strptime(TME, "%M:%S")    
         self.TLock          = datetime.strptime(otherTime, "%M:%S") 
+        self.AT             = datetime.strptime(otherTime, "%M:%S")
+        self.TF             = datetime.strptime(otherTime, "%M:%S")
+        self.TFS            = datetime.strptime(otherTime, "%M:%S")
+        self.WaitingTime    = datetime.strptime(otherTime, "%M:%S")
+        self.ServiceTime    = datetime.strptime(otherTime, "%M:%S")
         self.error          = False
+        self.FS             = False
         self.errorMessage   = list()
+    
+    def setFirstServe(self, FS):
+        self.FS = FS
+    
+    def getFirstServe(self):
+        return self.FS
         
     def getID(self):
         return self.id
@@ -48,7 +60,7 @@ class PCB:
     def getTLock(self):
         return self.TLock 
         
-    def setTLL(self,TLL):#Teimpo de llegada
+    def setTLL(self,TLL):#Tiempo de llegada
         self.TLL = TLL    
         
     def getTLL(self):
@@ -69,3 +81,39 @@ class PCB:
             return datetime.strptime(self.TR, "%M:%S")
         except:
             return self.TR
+    
+    def setArriveTime(self,globalClock): #Tiempo de llegada
+        self.AT = globalClock
+    
+    def getAT(self):
+        return self.AT
+
+    def setTFS(self, T): #Tiempo de Respuesta
+        self.TFS = T
+    
+    def getTFS(self):
+        return self.TFS
+    
+    def setTF(self,TF): #tiempo de finalizacion
+        self.TF = TF
+    
+    def getTF(self):
+        return self.TF
+    
+    def setReturnTime(self, T):#tiempo de retorno
+        self.ReturnTime = T
+    
+    def getReturnTime(self):
+        return self.ReturnTime
+        
+    def setWaitingTime(self, T):#tiempo de espera
+        self.WaitingTime = T
+    
+    def getWaitingTime(self):
+        return self.WaitingTime
+    
+    def setServiceTime(self, T):#tiempo de servicio
+        self.ServiceTime = T
+    
+    def getServiceTime(self):
+        return self.ServiceTime    
