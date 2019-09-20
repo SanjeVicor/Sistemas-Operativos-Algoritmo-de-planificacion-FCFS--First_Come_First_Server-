@@ -58,18 +58,42 @@ def getLocked(queueLocked):
     print (table.table)
 
 def getEnded(queueEnded):
-    tableData = [['ID', 'Operación', 'Resultado', 'Tiempo de Finalización']]
+    incrementTime = timedelta(seconds=1)
+    tableData = [['ID', 
+                  'Operación', 
+                  'Resultado', 
+                  'Tiempo de Finalización', 
+                  'Tiempo de llegada', 
+                  'Tiempo Max. Esperado', 
+                  'Tiempo Restante' , 
+                  'Tiempo de Respuesta',
+                  'Tiempo de Espera',
+                  'Tiempo de Servicio']]
     for task in queueEnded:
         if not task.getError():
             tableData.append([task.getID(),
                               task.getOperation(), 
                               task.getResult(), 
-                              str(task.getTF().second) + "'s"])
+                              str(task.getTF().second) + "'s", 
+                              str(task.getAT().second) + "'s" ,
+                              str(task.getTME().second) + "'s", 
+                              str(task.getTR().second) + "'s", 
+                              str(task.getTFS()) + "'s", 
+                              str(task.getWaitingTime().second ) + "'s",
+                              str(task.getServiceTime().second ) + "'s"
+                            ])
         else:
             tableData.append([task.getID(),
                               task.getOperation(), 
                               task.getErrorMessages(), 
-                              str(task.getTF().second) + "'s"])
+                              str(task.getTF().second) + "'s", 
+                              str(task.getAT().second) + "'s" ,
+                              str(task.getTME().second) + "'s", 
+                              str(task.getTR().second) + "'s", 
+                              str(task.getTFS()) + "'s", 
+                              str(task.getWaitingTime().second ) + "'s",
+                              str(task.getServiceTime().second) + "'s"
+                            ])
     table = AsciiTable(tableData)
     print (table.table)
 
@@ -88,13 +112,13 @@ def somethingOnQueueReady():
         executableProcess.setTFS(globalClock - executableProcess.getAT())
         
     while executableProcess.getTR().second > 0:
-        executableProcess.setServiceTime(executableProcess.getServiceTime()+incrementTime)
         
         proc = checkLockedQueue()
         if proc : 
             queueReady.append(proc)
         key=''
         
+        executableProcess.setServiceTime(executableProcess.getServiceTime()+incrementTime)
         executableProcess.setTR(executableProcess.getTR() - incrementTime)
             
         if msvcrt.kbhit():
@@ -123,7 +147,9 @@ def somethingOnQueueReady():
         getExcecutable(executableProcess)
         
         time.sleep(1)
-    
+    tmp = sp.call('cls',shell=True)  
+        
+    printTables()
     if key != 'i':   
         if not executableProcess.getError():
             operationList = []
@@ -138,8 +164,13 @@ def somethingOnQueueReady():
         
         executableProcess.setTF(globalClock)
         executableProcess.setReturnTime(globalClock - executableProcess.getAT())
-        executableProcess.setWaitingTime(executableProcess.getTFS() + executableProcess.getTLock())
+        if executableProcess.getTLock().second > 0: 
+            executableProcess.setWaitingTime(executableProcess.getTFS() + executableProcess.getTLock() - incrementTime)
+        else:
+            executableProcess.setWaitingTime(executableProcess.getTFS() + executableProcess.getTLock())
         endedList.append(executableProcess)
+        
+        
 
 def printTables():
     global globalClock
